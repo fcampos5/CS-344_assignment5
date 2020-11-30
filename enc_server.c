@@ -6,13 +6,107 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-//void encrypt(char* buffer, char* message) 
-//{
-//    int array[sizeof(buffer)];
-//
-//}
+// Returns int value of a char
+int charToNumber(char* character) 
+{
+    if (character == ' ')
+        return 0;
+    if (character == 'A')
+        return 1;
+    if (character == 'B')
+        return 2;
+    if (character == 'C')
+        return 3;
+    if (character == 'D')
+        return 4;
+    if (character == 'E')
+        return 5;
+    if (character == 'F')
+        return 6;
+    if (character == 'G')
+        return 7;
+    if (character == 'H')
+        return 8;
+    if (character == 'I')
+        return 9;
+    if (character == 'J')
+        return 10;
+    if (character == 'K')
+        return 11;
+    if (character == 'L')
+        return 12;
+    if (character == 'M')
+        return 13;
+    if (character == 'N')
+        return 14;
+    if (character == 'O')
+        return 15;
+    if (character == 'P')
+        return 16;
+    if (character == 'Q')
+        return 17;
+    if (character == 'R')
+        return 18;
+    if (character == 'S')
+        return 19;
+    if (character == 'T')
+        return 20;
+    if (character == 'U')
+        return 21;
+    if (character == 'V')
+        return 22;
+    if (character == 'W')
+        return 23;
+    if (character == 'X')
+        return 24;
+    if (character == 'Y')
+        return 25;
+    if (character == 'Z')
+        return 26;
+}
 
+// Return char value of an int
+char numberToChar(int number)
+{
+    char alphabet[27] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    return (alphabet[number]);
+}
 
+void encrypt(char* encryptMessage, char* message, char* key) 
+{
+    // messageNum will hold int values of ((message + key) mod 27)
+    int size = strlen(message);
+    int messageNum[size];
+    // Add encrypted int values to messageNum
+    for (int i = 0; i < size; i++) {
+        messageNum[i] = (charToNumber(message[i]) + charToNumber(key[i])) % 27;
+    }
+    // Convert int values to char and add to encrypted message
+    for (int j = 0; j < size; j++) 
+    {
+        encryptMessage[j] = numberToChar(messageNum[j]);
+    }
+}
+
+// Extracts the message and key from the buffer
+void splitMessage(char* buffer, char* message, char* key) 
+{
+    int stop = strlen(buffer);
+    int i = 0;
+    int j = 0;
+    // Extract message
+    while (buffer[i] != '/'){
+        message[i] = buffer[i];
+        i++;
+    }
+    i++;
+    // Extract key
+    while (i < stop){
+        key[j] = buffer[i];
+        i++;
+        j++;
+    }
+}
 
 // Error function used for reporting issues
 void error(const char* msg) {
@@ -38,7 +132,7 @@ void setupAddressStruct(struct sockaddr_in* address,
 int main(int argc, char* argv[]) {
     // CREATE SOCKET -------------------------------------------------------------------------
     int connectionSocket, charsRead, confirmID;
-    char buffer[70000];
+    char buffer[140000];
     struct sockaddr_in serverAddress, clientAddress;
     socklen_t sizeOfClientInfo = sizeof(clientAddress);
 
@@ -92,17 +186,16 @@ int main(int argc, char* argv[]) {
         }
         // Stop connection if incorrect client 
         if (strcmp(clientID, "enc") != 0) {
-            printf("WRONG ID \n");
             close(connectionSocket);
         }
         else {
             // RECV MESSAGE -------------------------------------------------------------------------
-            // Get the message from the client and display it
+            // Get the message from the client 
             memset(buffer, '\0', sizeof(buffer));
             const char* p = buffer;
             // Read the client's message from the socket
             while (1){
-                charsRead = recv(connectionSocket, p, 70000, 0);
+                charsRead = recv(connectionSocket, p, 140000, 0);
                 if (strstr(buffer, "@@") != NULL)
                 {
                     buffer[strcspn(buffer, "@@")] = '\0';
@@ -113,24 +206,34 @@ int main(int argc, char* argv[]) {
                 }
                 p += charsRead;
             }
-            printf("SERVER: I received this from the client: \"%s\"\n", buffer);
-            // LET CLIENT KNOW FINISHED REC ------------------------------------------------------
-
-            // RECV KEY -------------------------------------------------------------------------
-
+           // printf("SERVER: I received this from the client: \"%s\"\n", buffer);
+            // SPLIT MESSAGE -------------------------------------------------------------------------
+            char message[70000];
+            char key[70000];
+            char* token;
+            // Set memory for message and key
+            memset(message, '\0', sizeof(message));
+            memset(key, '\0', sizeof(key));
+            // Spilt buffer into message and key
+            splitMessage(buffer, message, key);
             // ENCRYPT MESSAGE -------------------------------------------------------------------------
-            //char message[70000];
-            //memset(message, '\0', sizeof(message));
-            //encrypt(buffer, message);
-
-
+            char encryptMessage[70000];
+            encrypt(encryptMessage, message, key);
             // SEND MESSAGE -------------------------------------------------------------------------
-            // Send a Success message back to the client
-            //charsRead = send(connectionSocket,
-            //    key, 39, 0);
-            //if (charsRead < 0) {
-            //    error("ERROR writing to socket");
-            //}
+            // Send a encrpted message back to the client
+            const char* pm = encryptMessage;
+            int length = strlen(encryptMessage);
+            charsRead = 0;
+            while (length > 0) {
+                charsRead = send(connectionSocket, pm, length, 0);
+                if (charsRead < 0) {
+                    error("CLIENT: ERROR writing to socket");
+                }
+                pm += charsRead;
+                length -= charsRead;
+            }
+            // Send to Server, let it know that the message is finished sending
+            charsRead = send(connectionSocket, "@@", 2, 0);
             // Close the connection socket for this client
             close(connectionSocket);
         }
