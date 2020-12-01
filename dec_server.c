@@ -138,7 +138,7 @@ void setupAddressStruct(struct sockaddr_in* address,
 int main(int argc, char* argv[]) {
     // CREATE SOCKET -------------------------------------------------------------------------
     int connectionSocket, charsRead, confirmID;
-    char buffer[140000];
+    char buffer[141000];
     pid_t spawnpid = -5;
     struct sockaddr_in serverAddress, clientAddress;
     socklen_t sizeOfClientInfo = sizeof(clientAddress);
@@ -182,6 +182,7 @@ int main(int argc, char* argv[]) {
                 while (clientIDLength > 0) {
                     confirmID = recv(connectionSocket, clientID, 3, 0);
                     if (confirmID < 0) {
+                        close(connectionSocket);
                         error("CLIENT: ERROR writing to socket");
                     }
                     clientIDLength -= confirmID;
@@ -192,6 +193,7 @@ int main(int argc, char* argv[]) {
                 while (clientIDLength > 0) {
                     confirmID = send(connectionSocket, "dec", 3, 0);
                     if (confirmID < 0) {
+                        close(connectionSocket);
                         error("CLIENT: ERROR writing to socket");
                     }
                     clientIDLength -= confirmID;
@@ -214,14 +216,15 @@ int main(int argc, char* argv[]) {
                             break;
                         }
                         if (charsRead < 0) {
+                            close(connectionSocket);
                             error("ERROR reading from socket");
                         }
                         p += charsRead;
                     }
                     // printf("SERVER: I received this from the client: \"%s\"\n", buffer);
                         // SPLIT MESSAGE -------------------------------------------------------------------------
-                    char message[70000];
-                    char key[70000];
+                    char message[71000];
+                    char key[71000];
                     char* token;
                     // Set memory for message and key
                     memset(message, '\0', sizeof(message));
@@ -229,7 +232,7 @@ int main(int argc, char* argv[]) {
                     // Spilt buffer into message and key
                     splitMessage(buffer, message, key);
                     // ENCRYPT MESSAGE -------------------------------------------------------------------------
-                    char decryptMessage[70000];
+                    char decryptMessage[71000];
                     decrypt(decryptMessage, message, key);
                     // SEND MESSAGE -------------------------------------------------------------------------
                     // Send a encrpted message back to the client
@@ -239,6 +242,7 @@ int main(int argc, char* argv[]) {
                     while (length > 0) {
                         charsRead = send(connectionSocket, pm, length, 0);
                         if (charsRead < 0) {
+                            close(connectionSocket);
                             error("CLIENT: ERROR writing to socket");
                         }
                         pm += charsRead;
