@@ -21,7 +21,6 @@ void badCharacters(char* string)
     for (int i = 0; i < stringLength; i++) {
         char ch = string[i];
         if (isalnum(ch) == 0 && ch != ' ') {
-            printf("Character is : %c \n", ch);
             perror("ERROR: A FILE CONTAINS INVALID CHARACTER");
             exit(1);
         }
@@ -95,7 +94,7 @@ int main(int argc, char* argv[]) {
     // CREATE SOCKET -------------------------------------------------------------------
     int socketFD, portNumber, charsWritten, charsRead, sendID, recvID;
     struct sockaddr_in serverAddress;
-    char buffer[70000];
+    char buffer[140000];
     char key[70000];
     // Check usage & args
     if (argc < 4) {
@@ -159,6 +158,9 @@ int main(int argc, char* argv[]) {
     }
     badCharacters(key);
     badCharacters(buffer);
+    // Combine key with buffer
+    strcat(buffer, "/");
+    strcat(buffer, key);
     // SEND MESSAGE -------------------------------------------------------------------------
     // Send message to server
     const char* p = buffer;
@@ -172,35 +174,24 @@ int main(int argc, char* argv[]) {
     }
     // Send to Server, let it know that the message is finished sending
     charsWritten = send(socketFD, "@@", 2, 0);
-    // WAIT FOR SERVER TO FINSH RECV MESSAGE -------------------------------------------------
-    // SEND KEY -------------------------------------------------------------------------
-    // Send key to server
-    //const char* pk = key;
-    //length = strlen(key);
-    //charsWritten = 0;
-    //printf("SENDING KEY\n");
-    //while (length > 0) {
-    //    charsWritten = send(socketFD, pk, length, 0);
-    //    if (charsWritten < 0) {
-    //        error("CLIENT: ERROR writing to socket");
-    //    }
-    //    pk += charsWritten;
-    //    length -= charsWritten;
-    //}
-    //// Send to Server, let it know that the message is finished sending
-    //charsWritten = 0;
-    //charsWritten = send(socketFD, "@@", 2, 0);
-    //printf("SENT KEY\n");
-    // RECV MESSAGE -------------------------------------------------------------------------
-    // Get return message from server
-    // Clear out the buffer again for reuse
-    //memset(buffer, '\0', sizeof(buffer));
-    // Read data from the socket, leaving \0 at end
-    //charsRead = recv(socketFD, buffer, sizeof(buffer) - 1, 0);
-    //if (charsRead < 0) {
-    //    error("CLIENT: ERROR reading from socket");
-    //}
 
+    // RECV MESSAGE -------------------------------------------------------------------------
+    memset(buffer, '\0', sizeof(buffer));
+    const char* pm = buffer;
+    // Read the encrypted message from the socket
+    while (1) {
+        charsRead = recv(socketFD, pm, 70000, 0);
+        if (strstr(buffer, "@@") != NULL)
+        {
+            buffer[strcspn(buffer, "@@")] = '\0';
+            break;
+        }
+        if (charsRead < 0) {
+            error("ERROR reading from socket");
+        }
+        pm += charsRead;
+    }
+    printf("%s\n", buffer);
     // Close the socket
     close(socketFD);
     return 0;
