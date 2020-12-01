@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 
 int main(int argc, char* argv[])
@@ -18,6 +19,7 @@ int main(int argc, char* argv[])
 	memset(key, 0, sizeof(key));
 	// Create alphabet reference 
 	char alphabet[27] =  " ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	srand(time(NULL));
 	int r;
 	// Genereate key
 	for (int i = 0; i < keylength; i++) 

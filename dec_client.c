@@ -92,10 +92,31 @@ void setupAddressStruct(struct sockaddr_in* address,
 }
 
 int main(int argc, char* argv[]) {
-    int socketFD, portNumber, charsWritten, charsRead;
+    // FILE CHECK -------------------------------------------------------------------------
+    // Clear out the buffer array
+    char buffer[141000];
+    char key[71000];
+    memset(buffer, '\0', sizeof(buffer));
+    // Grab text from file and put into buffer
+    textFile(buffer, argv[1]);
+    // Grab text from file and put into key
+    keyFile(key, argv[2]);
+    // Remove the trailing \n that gets added
+    buffer[strcspn(buffer, "\n")] = '\0';
+    key[strcspn(key, "\n")] = '\0';
+    // Error check buffer and key; key not big enough or invalid characters
+    if (strlen(key) < strlen(buffer)) {
+        perror("ERROR: KEY IS TOO SHORT");
+        exit(1);
+    }
+    badCharacters(key);
+    badCharacters(buffer);
+    // Combine key with buffer
+    strcat(buffer, "/");
+    strcat(buffer, key);
+    // CREATE SOCKET -------------------------------------------------------------------
+    int socketFD, portNumber, charsWritten, charsRead, sendID, recvID;
     struct sockaddr_in serverAddress;
-    char buffer[70000];
-    char key[70000];
     // Check usage & args
     if (argc < 4) {
         fprintf(stderr, "USAGE: %s hostname port\n", argv[0]);
@@ -112,31 +133,46 @@ int main(int argc, char* argv[]) {
     if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) {
         error("CLIENT: ERROR connecting");
     }
-    // Clear out the buffer array
-    memset(buffer, '\0', sizeof(buffer));
-    // Grab text from file and put into buffer
-    textFile(buffer, argv[1]);
-    // Grab text from file and put into key
-    keyFile(key, argv[2]);
-    // Remove the trailing \n that gets added
-    buffer[strcspn(buffer, "\n")] = '\0';
-    key[strcspn(key, "\n")] = '\0';
-    // Error check buffer and key; key not big enough or invalid characters
-    if (strlen(key) < strlen(buffer)) {
-        perror("ERROR: KEY IS TOO SHORT");
-        exit(1);
+    // ID CHECK -------------------------------------------------------------------------
+    // Send identification to server
+    char bufferID[3];
+    int bufferLength = sizeof(bufferID);
+    memset(bufferID, '\0', sizeof(bufferID));
+    // Send identification
+    while (bufferLength > 0) {
+        sendID = send(socketFD, "dec", 3, 0);
+        if (sendID < 0) {
+            close(socketFD);
+            error("CLIENT: ERROR writing to socket");
+        }
+        bufferLength -= sendID;
     }
-    badCharacters(key);
-    badCharacters(buffer);
-
-    // Pointer for buffer
+    // Recv identification confirmation
+    sendID = 0;
+    bufferLength = sizeof(bufferID);
+    while (bufferLength > 0) {
+        sendID = recv(socketFD, bufferID, 3, 0);
+        if (sendID < 0) {
+            close(socketFD);
+            error("CLIENT: ERROR writing to socket");
+        }
+        bufferLength -= sendID;
+    }
+    // Error check confirmation
+    if (strcmp(bufferID, "dec") != 0)
+    {
+        close(socketFD);
+        perror("ERROR: INVALID CONNECTION TO SERVER");
+        exit(2);
+    }
+    // SEND MESSAGE -------------------------------------------------------------------------
+    // Send message to server
     const char* p = buffer;
     int length = strlen(buffer);
-    // Send message to server
-    // Write to the server
     while (length > 0) {
         charsWritten = send(socketFD, p, length, 0);
         if (charsWritten < 0) {
+            close(socketFD);
             error("CLIENT: ERROR writing to socket");
         }
         p += charsWritten;
@@ -144,16 +180,25 @@ int main(int argc, char* argv[]) {
     }
     // Send to Server, let it know that the message is finished sending
     charsWritten = send(socketFD, "@@", 2, 0);
-    // Get return message from server
-    // Clear out the buffer again for reuse
-    memset(buffer, '\0', sizeof(buffer));
-    // Read data from the socket, leaving \0 at end
-    charsRead = recv(socketFD, buffer, sizeof(buffer) - 1, 0);
-    if (charsRead < 0) {
-        error("CLIENT: ERROR reading from socket");
-    }
-    printf("CLIENT: I received this from the server: \"%s\"\n", buffer);
 
+    // RECV MESSAGE -------------------------------------------------------------------------
+    memset(buffer, '\0', sizeof(buffer));
+    const char* pm = buffer;
+    // Read the encrypted message from the socket
+    while (1) {
+        charsRead = recv(socketFD, pm, 71000, 0);
+        if (strstr(buffer, "@@") != NULL)
+        {
+            buffer[strcspn(buffer, "@@")] = '\0';
+            break;
+        }
+        if (charsRead < 0) {
+            close(socketFD);
+            error("ERROR reading from socket");
+        }
+        pm += charsRead;
+    }
+    printf("%s\n", buffer);
     // Close the socket
     close(socketFD);
     return 0;
